@@ -1,7 +1,8 @@
 import itertools
 import numpy as np
 
-from  simulation.router import solve,populate_chain_dict
+from simulation.router import solve, populate_chain_dict
+
 
 def simulate():
     print("=============== chains and tokens ========================")
@@ -11,12 +12,11 @@ def simulate():
     OBJ_TOKEN = "ATOM"
 
     chains: dict[str, list[str]] = {
-        "ETHEREUM": ["WETH", "USDC", "SHIBA"],
+        "ETHEREUM": ["WETH", "USDC", "SHIBA", "TEST"],
         CENTER_NODE: [],
-        "OSMOSIS": ["ATOM","SCRT"],
+        "OSMOSIS": ["ATOM", "SCRT", "PICA", "LAYER"],
     }
-    populate_chain_dict(chains,CENTER_NODE)
-
+    populate_chain_dict(chains, CENTER_NODE)
 
     all_tokens = []
     all_cfmms = []
@@ -25,7 +25,6 @@ def simulate():
     cfmm_tx_cost = []
     ibc_pools = 0
     tol = 1e-4
-
 
     print(chains)
 
@@ -36,7 +35,7 @@ def simulate():
 
     # simulate reserves and gas costs to CFMMS
     for cfmm in all_cfmms:
-        reserves.append(np.random.uniform(9500, 10051, 2))
+        reserves.append(np.random.uniform(9_500, 10_000, 2))
         cfmm_tx_cost.append(np.random.uniform(0, 20))
 
     # simulate IBC "pools"
@@ -48,7 +47,7 @@ def simulate():
                     # Could cause problems if chainName == tokensName (for example OSMOSIS)
                     if other_token in token_on_center or token_on_center in other_token:
                         all_cfmms.append((token_on_center, other_token))
-                        reserves.append(np.random.uniform(10000, 11000, 2))
+                        reserves.append(np.random.uniform(10000000, 11000000, 2))
                         cfmm_tx_cost.append(np.random.uniform(0, 20))
                         ibc_pools += 1
 
@@ -66,94 +65,90 @@ def simulate():
     print("=============== solving ========================")
     input_amount = 2000
     d, l, psi, n = solve(
-        all_tokens, 
-        all_cfmms, 
-        reserves, 
-        cfmm_tx_cost, 
-        fees, 
-        ibc_pools, 
+        all_tokens,
+        all_cfmms,
+        reserves,
+        cfmm_tx_cost,
+        fees,
+        ibc_pools,
         ORIGIN_TOKEN,
         input_amount,
-        OBJ_TOKEN
-        )
+        OBJ_TOKEN,
+    )
 
-    to_look_n: list[float] = []
-    for i in range(len(all_cfmms)):
-        to_look_n.append(n[i].value)
+    # to_look_n: list[float] = []
+    # for i in range(len(all_cfmms)):
+    #     to_look_n.append(n[i].value)
 
-    _max = 0
-    for t in sorted(to_look_n):
-        try:
-            d2, l2, p2, n2 =  solve(
-                all_tokens,
-                all_cfmms,
-                reserves,
-                cfmm_tx_cost,
-                fees,
-                ibc_pools,
-                ORIGIN_TOKEN,
-                input_amount,
-                OBJ_TOKEN,
-                [1 if value <= t else 0 for value in to_look_n],
-            )
-            if psi.value[all_tokens.index(OBJ_TOKEN)] > _max:
-                d_max, l_max, p_max, n_max = d2, l2, p2, n2 
-            print("---")
-        except:
-            continue
-    eta = n_max
-    eta_change = True
-    print("---------")
-    lastp_value = psi.value[all_tokens.index(OBJ_TOKEN)]
-    while eta_change:
-        try:
-            eta_change = False
+    # _max = 0
+    # for t in sorted(to_look_n):
+    #     try:
+    #         d2, l2, p2, n2 = solve(
+    #             all_tokens,
+    #             all_cfmms,
+    #             reserves,
+    #             cfmm_tx_cost,
+    #             fees,
+    #             ibc_pools,
+    #             ORIGIN_TOKEN,
+    #             input_amount,
+    #             OBJ_TOKEN,
+    #             [1 if value <= t else 0 for value in to_look_n],
+    #         )
+    #         if psi.value[all_tokens.index(OBJ_TOKEN)] > _max:
+    #             d_max, l_max, p_max, n_max = d2, l2, p2, n2
+    #         print("---")
+    #     except:
+    #         continue
+    # eta = n_max
+    # eta_change = True
+    # print("---------")
+    # lastp_value = psi.value[all_tokens.index(OBJ_TOKEN)]
+    # while eta_change:
+    #     try:
+    #         eta_change = False
 
-            for idx, delta in enumerate(d_max):
-                if all(delta_i.value < 1e-04 for delta_i in delta):
-                    n_max[idx] = 0
-                    eta_change = True
-            d_max, l, psi, eta = solve(
-                all_tokens,
-                all_cfmms,
-                reserves,
-                cfmm_tx_cost,
-                fees,
-                ibc_pools,
-                ORIGIN_TOKEN,
-                input_amount,
-                OBJ_TOKEN,
-                eta,
-            )
+    #         for idx, delta in enumerate(d_max):
+    #             if all(delta_i.value < 1e-04 for delta_i in delta):
+    #                 n_max[idx] = 0
+    #                 eta_change = True
+    #         d_max, l, psi, eta = solve(
+    #             all_tokens,
+    #             all_cfmms,
+    #             reserves,
+    #             cfmm_tx_cost,
+    #             fees,
+    #             ibc_pools,
+    #             ORIGIN_TOKEN,
+    #             input_amount,
+    #             OBJ_TOKEN,
+    #             eta,
+    #         )
 
-        except:
-            continue
+    #     except:
+    #         continue
 
-    print("---")
-    deltas, lambdas, psi, eta = solve(
-                    all_tokens,
-                    all_cfmms,
-                    reserves,
-                    cfmm_tx_cost,
-                    fees,
-                    ibc_pools,
-                    ORIGIN_TOKEN,
-                    input_amount,
-                    OBJ_TOKEN,
-                    eta,
-                )
-    m = len(all_cfmms)
-    for i in range(m):
-        print(
-            f"Market {all_cfmms[i][0]}<->{all_cfmms[i][1]}, delta: {deltas[i].value}, lambda: {lambdas[i].value}, eta: {eta[i].value}",
-        )
+    # print("---")
+    # deltas, lambdas, psi, eta = solve(
+    #     all_tokens,
+    #     all_cfmms,
+    #     reserves,
+    #     cfmm_tx_cost,
+    #     fees,
+    #     ibc_pools,
+    #     ORIGIN_TOKEN,
+    #     input_amount,
+    #     OBJ_TOKEN,
+    #     eta,
+    # )
 
-    print(psi.value[all_tokens.index(OBJ_TOKEN)],lastp_value)
+    # print(psi.value[all_tokens.index(OBJ_TOKEN)], lastp_value)
     # basically, we have matrix where rows are in tokens (DELTA)
     # columns are outs (LAMBDA)
     # so recursively going DELTA-LAMBDA and subtracting values from cells
-    # will allow to build route with amounts 
-    return (psi.value[all_tokens.index(OBJ_TOKEN)],lastp_value)
-    
+    # will allow to build route with amounts
+    # return (psi.value[all_tokens.index(OBJ_TOKEN)], lastp_value)
+
+
 if __name__ == "__main__":
     simulate()
