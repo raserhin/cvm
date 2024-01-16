@@ -90,8 +90,8 @@ class ConvexRouter():
     def solve(self, data: AllData, input: Input) -> Output:
         if not input.max:
             raise NotImplementedError("'max' value on input is not supported to be False yet")
-        a = self.parse_data(data)
-        print(a)
+        exchanges, assets = self.parse_data(data)
+        return self._solve(exchanges, assets, input)
 
     def _solve(
         self, exchanges: list[RouterExchange], assets: list[RouterAsset], input: Input
