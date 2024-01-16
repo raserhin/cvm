@@ -2,7 +2,7 @@
 import pandas as pd
 from enum import Enum
 from typing import TypeVar
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from strictly_typed_pandas import DataSet
 
 TAssetId = TypeVar("TAssetId")
@@ -11,15 +11,20 @@ TNetworkId = TypeVar("TNetworkId")
 
 class AssetTransfers(BaseModel):
     # positive whole numbers, set key
-    in_asset_id: str
-    out_asset_id: str
+    in_asset_id: int
+    out_asset_id: int
 
     # this is positive whole number too
     # if it is hard if None, please fail if it is None - for now will be always some
     usd_fee_transfer: int | None
 
     # do not care
-    metadata: str
+    metadata: str | None
+
+
+    @validator("metadata", pre=True, always=True)
+    def replace_nan_with_None(cls, v):
+        return None if isinstance(v, float) else v
 
 
 # pool are bidirectional, so so in can be out and other way
@@ -41,6 +46,14 @@ class AssetPairsXyk(BaseModel):
     out_token_amount: int
 
     metadata: str | None
+
+    @validator("metadata", pre=True, always=True)
+    def replace_nan_metadata_with_None(cls, v):
+        return None if isinstance(v, float) else v
+    
+    @validator("pool_value_in_usd", pre=True, always=True)
+    def replace_nan_with_None(cls, v):
+        return v if v == v else None
 
 
 # this is what user asks for
@@ -114,19 +127,18 @@ class PydanticDataSet(BaseModel, DataSet[T]):
 class AllData(BaseModel):
     # DataSet inherits from DataFrame
     # If key is in first set, it cannot be in second set, and other way around
-    asset_transfers: PydanticDataSet[AssetTransfers]
-    asset_pairs_xyk: PydanticDataSet[AssetPairsXyk]
+    asset_transfers: list[AssetTransfers]
+    asset_pairs_xyk: list[AssetPairsXyk]
     # if None, than solution must not contain any joins after forks
     # so A was split into B and C, and then B and C were moved to be D
     # D must "summed" from 2 amounts must be 2 separate routes branches
-    fork_joins : str | None
-    
+
+    fork_joins: str | None = None
+
 
 def test_all_data() -> AllData:
-    asset_transfers = PydanticDataSet[AssetTransfers](
-        pd.read_csv("asset_transfers.csv")
+
+    return AllData(
+        asset_pairs_xyk=[AssetPairsXyk(**row) for _index, row in pd.read_csv("assets_pairs_xyk.csv").iterrows()],
+        asset_transfers=[AssetTransfers(**row) for _index, row in pd.read_csv("assets_transfers.csv").iterrows()],
     )
-    assets_pairs_xyk = PydanticDataSet[AssetPairsXyk](
-        pd.read_csv("assets_pairs_xyk.csv")
-    )
-    return AllData(assets_pairs_xyk, asset_transfers)
