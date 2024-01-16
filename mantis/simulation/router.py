@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from multiprocessing import Value
 
 import numpy as np
 import cvxpy as cp
@@ -54,14 +53,16 @@ class ConvexRouter():
         # Pools 
         for pool in data.asset_pairs_xyk:
             if pool.pool_value_in_usd is None:
+                # TODO: Maybe just ignore this pools???
                 raise ValueError(f"There is no information about USD value for pool {pool}")
+            
             token_in_id = pool.in_asset_id
             token_out_id = pool.out_asset_id
 
 
             exchanges.append(
                 ConstantProductPool(assets=[], 
-                                    fix_cost=0, # TODO: No information about this yet 
+                                    fix_cost=0, #TODO: No information about this yet 
                                     reserves=[pool.in_token_amount, pool.out_token_amount], 
                                     fee_in=pool.fee_of_in_per_million/1e6, 
                                     fee_out=pool.fee_of_out_per_million/1e6
@@ -70,10 +71,13 @@ class ConvexRouter():
 
         # Transfers
         for transfer in data.asset_transfers:
-            ConstantProductPool(assets=[], 
+            # TODO: No way to determine the price per asset when asset is not in 
+            # pool, is there any way to get the list of USD price, per asset, to
+            # route this fixed price in USD
+            IbcTransfer(assets=[], 
                                     fix_cost=transfer.usd_fee_transfer,
                                     reserves=[1e20, 1e20], 
-                                    fee_in=0, # No fee, only fix cost
+                                    fee_in=0, # No fee, only fix cost at the moment
                                     fee_out=0
                     )
         return exchanges, assets
@@ -84,6 +88,8 @@ class ConvexRouter():
         return exchange.reserves + (1 - exchange.fee_in) * delta - (1 - exchange.fee_out) * lamb
 
     def solve(self, data: AllData, input: Input) -> Output:
+        if not input.max:
+            raise NotImplementedError("'max' value on input is not supported to be False yet")
         a = self.parse_data(data)
         print(a)
 
@@ -185,5 +191,10 @@ if __name__ == "__main__":
     data = test_all_data()
 
     router = ConvexRouter()
-    input_obj = Input(in_token_id=1, out_token_id=4, in_amount=1, out_amount=100, max=False)
+    input_obj = Input(in_token_id=1, 
+                      out_token_id=4, 
+                      in_amount=1, 
+                      out_amount=100, 
+                      max=True
+                      )
     router.solve(data, input_obj)
